@@ -33,5 +33,13 @@ public class EmailNotificationDTO {
     private String clientName;
 
     // Atributos dinámicos para inyectar en la plantilla HTML (Thymeleaf)
-    private Map<String, Object> templateParams;
+    private Map<String, Object> templateAttributes;
+
+    public Map<String, Object> getTemplateParams() {
+        return this.templateAttributes;
+    }
+
+    public void setTemplateParams(Map<String, Object> templateParams) {
+        this.templateAttributes = templateParams;
+    }
 }

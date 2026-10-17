@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Notificación de Orden de Trabajo — DigitalFix</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333333; }
+        .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .email-header { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: #ffffff; padding: 24px; text-align: center; }
+        .email-header h2 { margin: 0; font-size: 22px; font-weight: 600; }
+        .email-body { padding: 30px; font-size: 15px; line-height: 1.6; }
+        .order-card { background-color: #f8f9fa; border-left: 4px solid #0d6efd; padding: 16px; margin: 20px 0; border-radius: 4px; }
+        .email-footer { background-color: #f1f3f5; padding: 16px; text-align: center; font-size: 12px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h2>⚡ DigitalFix — Servicio Técnico</h2>
+        </div>
+        <div class="email-body">
+            <p>Hola, <strong th:text="${clientName}">Cliente</strong>,</p>
+            <p>Te informamos sobre la actualización en tu orden de trabajo de mantenimiento eléctrico:</p>
+            
+            <div class="order-card">
+                Orden de Trabajo N°: <span th:text="'#' + ${workOrderId}">#1001</span><br />
+                Estado: <span th:text="${status != null ? status : 'ASIGNADA'}">ASIGNADA</span>
+            </div>
+
+            <p>Técnico Asignado: <strong th:text="${technicianName != null ? technicianName : 'Juan Pérez'}">Juan Pérez</strong></p>
+            <p>Dirección de Atención: <span th:text="${serviceAddress != null ? serviceAddress : 'Av. Providencia 1234'}">Av. Providencia 1234</span></p>
+
+            <p>Puedes realizar el seguimiento continuo de tu atención desde nuestro portal web.</p>
+        </div>
+        <div class="email-footer">
+            <p>Este es un correo automático generado por la plataforma DigitalFix. Por favor no responder.</p>
+        </div>
+    </div>
+</body>
+</html>
