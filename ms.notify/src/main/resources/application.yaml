@@ -1,3 +1,90 @@
+server:
+  port: ${PORT:8083}
+
 spring:
   application:
-    name: ms.notify
+    name: ms-digitalfix-notify
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+      - org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration
+
+  # -------------------------------------------------------------------
+  # Configuración de RabbitMQ
+  # -------------------------------------------------------------------
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:admin123}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+    listener:
+      simple:
+        acknowledge-mode: manual  # ACK/NACK explícito para consumo seguro
+        prefetch: 1               # Procesa 1 mensaje por hilo
+        concurrency: 1            # Hilos mínimos de consumo
+        max-concurrency: 3        # Hilos máximos de consumo
+        retry:
+          enabled: true
+          initial-interval: 1000ms
+          max-interval: 10000ms
+          multiplier: 2.0
+          max-attempts: 3
+
+  # -------------------------------------------------------------------
+  # Configuración del Servidor SMTP (Java Mail Sender)
+  # -------------------------------------------------------------------
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.mailtrap.io}
+    port: ${SPRING_MAIL_PORT:2525}
+    username: ${SPRING_MAIL_USERNAME:tu_usuario_smtp}
+    password: ${SPRING_MAIL_PASSWORD:tu_password_smtp}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# -------------------------------------------------------------------
+# Configuración de Spring Boot Actuator (Monitoreo y Salud)
+# -------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics  # Expone endpoints requeridos
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always  # Muestra el estado detallado de cada componente
+      probes:
+        enabled: true       # Habilita /health/liveness y /health/readiness (ideal para Docker)
+  health:
+    rabbitmq:
+      enabled: true         # Verifica automáticamente el estado del broker RabbitMQ
+    mail:
+      enabled: false        # Evita que el servicio caiga si el servidor SMTP de prueba no responde
+
+# -------------------------------------------------------------------
+# Centralización de Nombres de Topología RabbitMQ (Buenas Prácticas)
+# -------------------------------------------------------------------
+app:
+  rabbitmq:
+    exchanges:
+      direct: cmd.direct
+      topic: cmd.topic
+      dlx: cmd.dead.dlx
+    queues:
+      email: q.cmd.email
+      email-dlq: q.cmd.email.dlq
+      dispatch: q.cmd.dispatch
+      dispatch-dlq: q.cmd.dispatch.dlq
+      report: q.cmd.report
+      report-dlq: q.cmd.report.dlq
+    routing-keys:
+      email-send: email.send
+      dispatch-ticket: dispatch.ticket
+      report-gen: report.gen
