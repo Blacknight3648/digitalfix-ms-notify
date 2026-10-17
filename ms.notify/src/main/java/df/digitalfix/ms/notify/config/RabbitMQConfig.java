@@ -48,9 +48,9 @@ public class RabbitMQConfig {
     @Value("${app.rabbitmq.routing-keys.report-gen:report.gen}")
     private String reportRoutingKey;
 
-    // ===================================================================
+    //
     // 1. DECLARACIÓN DE EXCHANGES
-    // ===================================================================
+    //
 
     @Bean
     public DirectExchange cmdDirectExchange() {
@@ -67,9 +67,9 @@ public class RabbitMQConfig {
         return new DirectExchange(dlxExchangeName, true, false);
     }
 
-    // ===================================================================
+    //
     // 2. DECLARACIÓN DE DEAD LETTER QUEUES (DLQ)
-    // ===================================================================
+    //
 
     @Bean
     public Queue emailDlq() {
@@ -92,9 +92,9 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    // ===================================================================
+    //
     // 3. DECLARACIÓN DE COLAS PRINCIPALES CON CONFIGURACIÓN DLX
-    // ===================================================================
+    //
 
     @Bean
     public Queue emailQueue() {
@@ -120,9 +120,9 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    // ===================================================================
+    //
     // 4. BINDINGS EN COLAS PRINCIPALES (DIRECT Y TOPIC)
-    // ===================================================================
+    //
 
     @Bean
     public Binding emailDirectBinding(Queue emailQueue, DirectExchange cmdDirectExchange) {
@@ -154,9 +154,9 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(reportQueue).to(cmdTopicExchange).with("report.*");
     }
 
-    // ===================================================================
+    //
     // 5. BINDINGS PARA DEAD LETTER QUEUES (DLX)
-    // ===================================================================
+    //
 
     @Bean
     public Binding emailDlqBinding(Queue emailDlq, DirectExchange cmdDeadLetterExchange) {
