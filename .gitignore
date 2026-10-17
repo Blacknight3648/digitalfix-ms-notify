@@ -1,0 +1,6 @@
+### Secretos: NUNCA versionar ###
+.env
+*.env
+!.env.example
+/wallet/
+**/wallet/
