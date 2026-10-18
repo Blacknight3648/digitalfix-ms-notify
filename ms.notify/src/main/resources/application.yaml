@@ -6,9 +6,13 @@ spring:
   application:
     name: ms.notify
 
-  # Carga el archivo .env de la raiz del proyecto (si existe)
+  # Carga el archivo .env de la raiz del proyecto o subcarpetas
   config:
-    import: optional:file:.env[.properties]
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:digitalfix-ms-notify/ms.notify/.env[.properties]
+      - optional:file:ms.notify/.env[.properties]
+      - optional:file:../.env[.properties]
 
   datasource:
     # Definida en .env, ej: jdbc:oracle:thin:@<alias>_high?TNS_ADMIN=./wallet
