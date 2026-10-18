@@ -1,10 +1,10 @@
-# Puerto local configurable desde .env (SERVER_PORT)
+# Puerto local configurable desde .env (PORT o SERVER_PORT)
 server:
   port: ${PORT:${SERVER_PORT:8083}}
 
 spring:
   application:
-    name: ms.notify
+    name: ms-digitalfix-notify
 
   # Carga el archivo .env de la raiz del proyecto o subcarpetas
   config:
@@ -14,8 +14,10 @@ spring:
       - optional:file:ms.notify/.env[.properties]
       - optional:file:../.env[.properties]
 
+  # -------------------------------------------------------------------
+  # Configuración de Base de Datos Oracle Autonomous (con Wallet)
+  # -------------------------------------------------------------------
   datasource:
-    # Definida en .env, ej: jdbc:oracle:thin:@<alias>_high?TNS_ADMIN=./wallet
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
@@ -40,6 +42,46 @@ spring:
     table: flyway_schema_history_notify
     locations: classpath:db/migration
 
+  # -------------------------------------------------------------------
+  # Configuración de RabbitMQ
+  # -------------------------------------------------------------------
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:admin123}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+    listener:
+      simple:
+        acknowledge-mode: manual  # ACK/NACK explícito para consumo seguro
+        prefetch: 1               # Procesa 1 mensaje por hilo
+        concurrency: 1            # Hilos mínimos de consumo
+        max-concurrency: 3        # Hilos máximos de consumo
+        retry:
+          enabled: true
+          initial-interval: 1000ms
+          max-interval: 10000ms
+          multiplier: 2.0
+          max-attempts: 3
+
+  # -------------------------------------------------------------------
+  # Configuración del Servidor SMTP (Java Mail Sender)
+  # -------------------------------------------------------------------
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.mailtrap.io}
+    port: ${SPRING_MAIL_PORT:2525}
+    username: ${SPRING_MAIL_USERNAME:tu_usuario_smtp}
+    password: ${SPRING_MAIL_PASSWORD:tu_password_smtp}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# -------------------------------------------------------------------
+# Configuración de SpringDoc / Swagger
+# -------------------------------------------------------------------
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -48,3 +90,44 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
     display-request-duration: true
+
+# -------------------------------------------------------------------
+# Configuración de Spring Boot Actuator (Monitoreo y Salud)
+# -------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    rabbitmq:
+      enabled: true
+    mail:
+      enabled: false
+
+# -------------------------------------------------------------------
+# Centralización de Nombres de Topología RabbitMQ
+# -------------------------------------------------------------------
+app:
+  rabbitmq:
+    exchanges:
+      direct: cmd.direct
+      topic: cmd.topic
+      dlx: cmd.dead.dlx
+    queues:
+      email: q.cmd.email
+      email-dlq: q.cmd.email.dlq
+      dispatch: q.cmd.dispatch
+      dispatch-dlq: q.cmd.dispatch.dlq
+      report: q.cmd.report
+      report-dlq: q.cmd.report.dlq
+    routing-keys:
+      email-send: email.send
+      dispatch-ticket: dispatch.ticket
+      report-gen: report.gen

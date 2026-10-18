@@ -1,6 +1,19 @@
-### Secretos: NUNCA versionar ###
+# Environment variables
 .env
 *.env
+.env.local
 !.env.example
+
+### Secretos: NUNCA versionar ###
 /wallet/
 **/wallet/
+
+# IDE & OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Build outputs
+target/
+*.log
