@@ -1,0 +1,13 @@
+# Environment variables
+.env
+.env.local
+
+# IDE & OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Build outputs
+target/
+*.log

@@ -1,0 +1,53 @@
+version: '3.8'
+
+networks:
+  digitalfix-net:
+    driver: bridge
+
+services:
+
+  # Broker de Mensajería: RabbitMQ con Management Plugin
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: digitalfix-rabbitmq
+    ports:
+      - "5672:5672" # Puerto AMQP
+      - "15672:15672" # Consola de administración Web
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin123}
+    networks:
+      - digitalfix-net
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Microservicio de Notificaciones y Despacho (ms-digitalfix-notify)
+
+  ms-digitalfix-notify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ms-digitalfix-notify
+    ports:
+      - "${PORT:-8083}:8083"
+    environment:
+      - PORT=${PORT:-8083}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-admin}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-admin123}
+      - RABBITMQ_VIRTUAL_HOST=${RABBITMQ_VIRTUAL_HOST:-/}
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST}
+      - SPRING_MAIL_PORT=${SPRING_MAIL_PORT}
+      - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME}
+      - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD}
+    networks:
+      - digitalfix-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
