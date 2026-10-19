@@ -1,175 +1,124 @@
 package df.digitalfix.ms.notify.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Configuration
 public class RabbitMQConfig {
 
-    // Nombres de Exchanges
-    @Value("${app.rabbitmq.exchanges.direct:cmd.direct}")
+    @Value("${digitalfix.rabbitmq.exchanges.direct:cmd.direct}")
     private String directExchangeName;
 
-    @Value("${app.rabbitmq.exchanges.topic:cmd.topic}")
-    private String topicExchangeName;
-
-    @Value("${app.rabbitmq.exchanges.dlx:cmd.dead.dlx}")
+    @Value("${digitalfix.rabbitmq.exchanges.dlx:cmd.dead.dlx}")
     private String dlxExchangeName;
 
-    // Nombres de Colas Principales
-    @Value("${app.rabbitmq.queues.email:q.cmd.email}")
+    @Value("${digitalfix.rabbitmq.queues.email:q.cmd.email}")
     private String emailQueueName;
 
-    @Value("${app.rabbitmq.queues.dispatch:q.cmd.dispatch}")
-    private String dispatchQueueName;
-
-    @Value("${app.rabbitmq.queues.report:q.cmd.report}")
-    private String reportQueueName;
-
-    // Nombres de DLQs
-    @Value("${app.rabbitmq.queues.email-dlq:q.cmd.email.dlq}")
+    @Value("${digitalfix.rabbitmq.queues.email-dlq:q.cmd.email.dlq}")
     private String emailDlqName;
 
-    @Value("${app.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}")
+    @Value("${digitalfix.rabbitmq.queues.dispatch:q.cmd.dispatch}")
+    private String dispatchQueueName;
+
+    @Value("${digitalfix.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}")
     private String dispatchDlqName;
 
-    @Value("${app.rabbitmq.queues.report-dlq:q.cmd.report.dlq}")
-    private String reportDlqName;
-
-    // Routing Keys
-    @Value("${app.rabbitmq.routing-keys.email-send:email.send}")
+    @Value("${digitalfix.rabbitmq.routing-keys.email:email.send}")
     private String emailRoutingKey;
 
-    @Value("${app.rabbitmq.routing-keys.dispatch-ticket:dispatch.ticket}")
+    @Value("${digitalfix.rabbitmq.routing-keys.email-dlq:email.send.dlq}")
+    private String emailDlqRoutingKey;
+
+    @Value("${digitalfix.rabbitmq.routing-keys.dispatch:dispatch.ticket}")
     private String dispatchRoutingKey;
 
-    @Value("${app.rabbitmq.routing-keys.report-gen:report.gen}")
-    private String reportRoutingKey;
+    @Value("${digitalfix.rabbitmq.routing-keys.dispatch-dlq:dispatch.ticket.dlq}")
+    private String dispatchDlqRoutingKey;
 
-    //
-    // 1. DECLARACIÓN DE EXCHANGES
-    //
-
+    // -------------------------------------------------------------------
+    // Converter de Mensajes JSON con Soporte para LocalDateTime
+    // -------------------------------------------------------------------
     @Bean
-    public DirectExchange cmdDirectExchange() {
+    public MessageConverter jsonMessageConverter() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new Jackson2JsonMessageConverter(objectMapper);
+    }
+
+    // -------------------------------------------------------------------
+    // Declaración de Exchanges (Direct & Dead Letter Exchange)
+    // -------------------------------------------------------------------
+    @Bean
+    public DirectExchange directExchange() {
         return new DirectExchange(directExchangeName, true, false);
     }
 
     @Bean
-    public TopicExchange cmdTopicExchange() {
-        return new TopicExchange(topicExchangeName, true, false);
-    }
-
-    @Bean
-    public DirectExchange cmdDeadLetterExchange() {
+    public DirectExchange deadLetterExchange() {
         return new DirectExchange(dlxExchangeName, true, false);
     }
 
-    //
-    // 2. DECLARACIÓN DE DEAD LETTER QUEUES (DLQ)
-    //
+    // -------------------------------------------------------------------
+    // Declaración de Colas con Configuración de DLX
+    // -------------------------------------------------------------------
+    @Bean
+    public Queue emailQueue() {
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", dlxExchangeName);
+        args.put("x-dead-letter-routing-key", emailDlqRoutingKey);
+        return new Queue(emailQueueName, true, false, false, args);
+    }
 
     @Bean
     public Queue emailDlq() {
-        return QueueBuilder.durable(emailDlqName)
-                .withArgument("x-message-ttl", 86400000) // TTL de 24 horas en la DLQ
-                .build();
-    }
-
-    @Bean
-    public Queue dispatchDlq() {
-        return QueueBuilder.durable(dispatchDlqName)
-                .withArgument("x-message-ttl", 86400000)
-                .build();
-    }
-
-    @Bean
-    public Queue reportDlq() {
-        return QueueBuilder.durable(reportDlqName)
-                .withArgument("x-message-ttl", 86400000)
-                .build();
-    }
-
-    //
-    // 3. DECLARACIÓN DE COLAS PRINCIPALES CON CONFIGURACIÓN DLX
-    //
-
-    @Bean
-    public Queue emailQueue() {
-        return QueueBuilder.durable(emailQueueName)
-                .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", "email.dead")
-                .build();
+        return new Queue(emailDlqName, true, false, false);
     }
 
     @Bean
     public Queue dispatchQueue() {
-        return QueueBuilder.durable(dispatchQueueName)
-                .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", "dispatch.dead")
-                .build();
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", dlxExchangeName);
+        args.put("x-dead-letter-routing-key", dispatchDlqRoutingKey);
+        return new Queue(dispatchQueueName, true, false, false, args);
     }
 
     @Bean
-    public Queue reportQueue() {
-        return QueueBuilder.durable(reportQueueName)
-                .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", "report.dead")
-                .build();
+    public Queue dispatchDlq() {
+        return new Queue(dispatchDlqName, true, false, false);
     }
 
-    //
-    // 4. BINDINGS EN COLAS PRINCIPALES (DIRECT Y TOPIC)
-    //
-
+    // -------------------------------------------------------------------
+    // Bindings entre Colas y Exchanges
+    // -------------------------------------------------------------------
     @Bean
-    public Binding emailDirectBinding(Queue emailQueue, DirectExchange cmdDirectExchange) {
-        return BindingBuilder.bind(emailQueue).to(cmdDirectExchange).with(emailRoutingKey);
+    public Binding emailBinding() {
+        return BindingBuilder.bind(emailQueue()).to(directExchange()).with(emailRoutingKey);
     }
 
     @Bean
-    public Binding emailTopicBinding(Queue emailQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(emailQueue).to(cmdTopicExchange).with("email.*");
+    public Binding emailDlqBinding() {
+        return BindingBuilder.bind(emailDlq()).to(deadLetterExchange()).with(emailDlqRoutingKey);
     }
 
     @Bean
-    public Binding dispatchDirectBinding(Queue dispatchQueue, DirectExchange cmdDirectExchange) {
-        return BindingBuilder.bind(dispatchQueue).to(cmdDirectExchange).with(dispatchRoutingKey);
+    public Binding dispatchBinding() {
+        return BindingBuilder.bind(dispatchQueue()).to(directExchange()).with(dispatchRoutingKey);
     }
 
     @Bean
-    public Binding dispatchTopicBinding(Queue dispatchQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(dispatchQueue).to(cmdTopicExchange).with("dispatch.#");
-    }
-
-    @Bean
-    public Binding reportDirectBinding(Queue reportQueue, DirectExchange cmdDirectExchange) {
-        return BindingBuilder.bind(reportQueue).to(cmdDirectExchange).with(reportRoutingKey);
-    }
-
-    @Bean
-    public Binding reportTopicBinding(Queue reportQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(reportQueue).to(cmdTopicExchange).with("report.*");
-    }
-
-    //
-    // 5. BINDINGS PARA DEAD LETTER QUEUES (DLX)
-    //
-
-    @Bean
-    public Binding emailDlqBinding(Queue emailDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(emailDlq).to(cmdDeadLetterExchange).with("email.dead");
-    }
-
-    @Bean
-    public Binding dispatchDlqBinding(Queue dispatchDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(dispatchDlq).to(cmdDeadLetterExchange).with("dispatch.dead");
-    }
-
-    @Bean
-    public Binding reportDlqBinding(Queue reportDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(reportDlq).to(cmdDeadLetterExchange).with("report.dead");
+    public Binding dispatchDlqBinding() {
+        return BindingBuilder.bind(dispatchDlq()).to(deadLetterExchange()).with(dispatchDlqRoutingKey);
     }
 }

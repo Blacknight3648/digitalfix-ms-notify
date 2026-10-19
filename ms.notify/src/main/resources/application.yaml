@@ -1,6 +1,6 @@
-# Puerto local configurable desde .env (PORT o SERVER_PORT)
+# Puerto local configurable desde .env (PORT)
 server:
-  port: ${PORT:${SERVER_PORT:8083}}
+  port: ${PORT:8082}
 
 spring:
   application:
@@ -53,8 +53,8 @@ spring:
     virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
     listener:
       simple:
-        acknowledge-mode: manual  # ACK/NACK explícito para consumo seguro
-        prefetch: 1               # Procesa 1 mensaje por hilo
+        acknowledge-mode: manual # Confirmación manual explícita (ACK/NACK)
+        prefetch: 1              # Procesa un mensaje a la vez por consumidor
         concurrency: 1            # Hilos mínimos de consumo
         max-concurrency: 3        # Hilos máximos de consumo
         retry:
@@ -112,22 +112,43 @@ management:
       enabled: false
 
 # -------------------------------------------------------------------
-# Centralización de Nombres de Topología RabbitMQ
+# Nombres de Colas y Exchanges de Notificaciones
 # -------------------------------------------------------------------
-app:
+digitalfix:
   rabbitmq:
     exchanges:
       direct: cmd.direct
-      topic: cmd.topic
       dlx: cmd.dead.dlx
     queues:
       email: q.cmd.email
       email-dlq: q.cmd.email.dlq
       dispatch: q.cmd.dispatch
       dispatch-dlq: q.cmd.dispatch.dlq
+    routing-keys:
+      email: email.send
+      email-dlq: email.send.dlq
+      dispatch: dispatch.ticket
+      dispatch-dlq: dispatch.ticket.dlq
+
+# -------------------------------------------------------------------
+# Centralización de Nombres de Topología RabbitMQ (Compatibilidad)
+# -------------------------------------------------------------------
+app:
+  rabbitmq:
+    exchanges:
+      direct: ${digitalfix.rabbitmq.exchanges.direct:cmd.direct}
+      dlx: ${digitalfix.rabbitmq.exchanges.dlx:cmd.dead.dlx}
+      topic: cmd.topic
+    queues:
+      email: ${digitalfix.rabbitmq.queues.email:q.cmd.email}
+      email-dlq: ${digitalfix.rabbitmq.queues.email-dlq:q.cmd.email.dlq}
+      dispatch: ${digitalfix.rabbitmq.queues.dispatch:q.cmd.dispatch}
+      dispatch-dlq: ${digitalfix.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}
       report: q.cmd.report
       report-dlq: q.cmd.report.dlq
     routing-keys:
-      email-send: email.send
-      dispatch-ticket: dispatch.ticket
+      email-send: ${digitalfix.rabbitmq.routing-keys.email:email.send}
+      email-dlq: ${digitalfix.rabbitmq.routing-keys.email-dlq:email.send.dlq}
+      dispatch-ticket: ${digitalfix.rabbitmq.routing-keys.dispatch:dispatch.ticket}
+      dispatch-dlq: ${digitalfix.rabbitmq.routing-keys.dispatch-dlq:dispatch.ticket.dlq}
       report-gen: report.gen
