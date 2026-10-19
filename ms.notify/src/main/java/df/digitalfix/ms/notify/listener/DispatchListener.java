@@ -21,7 +21,7 @@ public class DispatchListener {
 
     private final DispatchService dispatchService;
 
-    @RabbitListener(queues = "${app.rabbitmq.queues.dispatch:q.cmd.dispatch}")
+    @RabbitListener(queues = "${digitalfix.rabbitmq.queues.dispatch:${app.rabbitmq.queues.dispatch:q.cmd.dispatch}}")
     public void consumeDispatchTicket(
             @Payload EventEnvelopeDTO<DispatchTicketDTO> envelope,
             Channel channel,

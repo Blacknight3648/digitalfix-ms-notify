@@ -15,8 +15,8 @@ import java.io.IOException;
 public class DlqListener {
 
     @RabbitListener(queues = {
-            "${app.rabbitmq.queues.email-dlq:q.cmd.email.dlq}",
-            "${app.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}",
+            "${digitalfix.rabbitmq.queues.email-dlq:${app.rabbitmq.queues.email-dlq:q.cmd.email.dlq}}",
+            "${digitalfix.rabbitmq.queues.dispatch-dlq:${app.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}}",
             "${app.rabbitmq.queues.report-dlq:q.cmd.report.dlq}"
     })
     public void processQuarantineMessage(

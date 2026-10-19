@@ -21,7 +21,7 @@ public class EmailListener {
 
     private final EmailService emailService;
 
-    @RabbitListener(queues = "${app.rabbitmq.queues.email:q.cmd.email}")
+    @RabbitListener(queues = "${digitalfix.rabbitmq.queues.email:${app.rabbitmq.queues.email:q.cmd.email}}")
     public void consumeEmailNotification(
             @Payload EventEnvelopeDTO<EmailNotificationDTO> envelope,
             Channel channel,
