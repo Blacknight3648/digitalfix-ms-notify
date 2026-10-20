@@ -1,6 +1,5 @@
 # Etapa 1: Compilación y Construcción (Build Stage)
-
-FROM maven:3.9.6-eclipse-temurin-17-alpine AS builder
+FROM maven:3.9.8-eclipse-temurin-21-alpine AS builder
 WORKDIR /app
 
 # Copiar el POM y descargar dependencias (Aprovechamiento de caché de capas)
@@ -11,10 +10,8 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-
 # Etapa 2: Imagen de Ejecución Ligera (Runtime Stage)
-
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Crear usuario no-root por seguridad
@@ -29,6 +26,7 @@ EXPOSE 8083
 
 # Variables de entorno por defecto
 ENV PORT=8083
+ENV JAVA_OPTS="-Djava.net.preferIPv4Stack=true"
 
 # Comando de inicio
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

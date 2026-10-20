@@ -2,17 +2,17 @@ version: '3.8'
 
 networks:
   digitalfix-net:
+    name: digitalfix-net
     driver: bridge
 
 services:
 
   # Broker de Mensajería: RabbitMQ con Management Plugin
-
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: digitalfix-rabbitmq
     ports:
-      - "5672:5672" # Puerto AMQP
+      - "5672:5672"   # Puerto AMQP
       - "15672:15672" # Consola de administración Web
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-admin}
@@ -26,25 +26,38 @@ services:
       retries: 5
 
   # Microservicio de Notificaciones y Despacho (ms-digitalfix-notify)
-
   ms-digitalfix-notify:
     build:
-      context: .
+      context: ./ms.notify
       dockerfile: Dockerfile
     container_name: ms-digitalfix-notify
     ports:
       - "${PORT:-8083}:8083"
+    env_file:
+      - .env
     environment:
       - PORT=${PORT:-8083}
+      - SERVER_PORT=${SERVER_PORT:-8083}
+      # Base de Datos Oracle Autonomous (con Wallet)
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      # Conexión a RabbitMQ
       - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
       - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-admin}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-admin123}
       - RABBITMQ_VIRTUAL_HOST=${RABBITMQ_VIRTUAL_HOST:-/}
+      # Servidor SMTP (JavaMailSender)
       - SPRING_MAIL_HOST=${SPRING_MAIL_HOST}
       - SPRING_MAIL_PORT=${SPRING_MAIL_PORT}
       - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME}
       - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
+      - JAVA_OPTS=-Djava.net.preferIPv4Stack=true
+    volumes:
+      # Montaje del Wallet mTLS de Oracle Cloud
+      - ./wallet:/app/wallet:ro
     networks:
       - digitalfix-net
     depends_on:

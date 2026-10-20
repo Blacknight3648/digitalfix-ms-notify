@@ -46,8 +46,10 @@ spring:
   # Configuración de RabbitMQ
   # -------------------------------------------------------------------
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
+    # Nodos del clúster separados por coma: si se cae uno, el cliente reconecta al otro.
+    # Sin RABBITMQ_ADDRESSES se usa RABBITMQ_HOST:RABBITMQ_PORT (un solo nodo).
+    addresses: ${RABBITMQ_ADDRESSES:${RABBITMQ_HOST:localhost}:${RABBITMQ_PORT:5672}}
+    address-shuffle-mode: random  # reparte las conexiones entre los nodos
     username: ${RABBITMQ_USERNAME:admin}
     password: ${RABBITMQ_PASSWORD:admin123}
     virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
@@ -57,12 +59,10 @@ spring:
         prefetch: 1               # Procesa 1 mensaje por hilo
         concurrency: 1            # Hilos mínimos de consumo
         max-concurrency: 3        # Hilos máximos de consumo
+        # Con ACK manual los listeners capturan sus errores, así que el retry del contenedor no
+        # actuaría: los reintentos los maneja ManejadorFallosMensajeria (app.rabbitmq.retry).
         retry:
-          enabled: true
-          initial-interval: 1000ms
-          max-interval: 10000ms
-          multiplier: 2.0
-          max-attempts: 3
+          enabled: false
 
   # -------------------------------------------------------------------
   # Configuración del Servidor SMTP (Java Mail Sender)
@@ -131,3 +131,13 @@ app:
       email-send: email.send
       dispatch-ticket: dispatch.ticket
       report-gen: report.gen
+      email-dead: email.dead
+      dispatch-dead: dispatch.dead
+      report-dead: report.dead
+    topic-patterns:
+      email: email.*
+      dispatch: dispatch.#
+      report: report.*
+    # Errores transitorios (SMTP caído, timeout): reintentos antes de derivar a la DLQ
+    retry:
+      max-attempts: 3

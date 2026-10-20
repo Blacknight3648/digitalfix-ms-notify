@@ -48,6 +48,25 @@ public class RabbitMQConfig {
     @Value("${app.rabbitmq.routing-keys.report-gen:report.gen}")
     private String reportRoutingKey;
 
+    // Routing keys hacia la DLQ (x-dead-letter-routing-key) y patrones del exchange topic
+    @Value("${app.rabbitmq.routing-keys.email-dead:email.dead}")
+    private String emailDeadRoutingKey;
+
+    @Value("${app.rabbitmq.routing-keys.dispatch-dead:dispatch.dead}")
+    private String dispatchDeadRoutingKey;
+
+    @Value("${app.rabbitmq.routing-keys.report-dead:report.dead}")
+    private String reportDeadRoutingKey;
+
+    @Value("${app.rabbitmq.topic-patterns.email:email.*}")
+    private String emailTopicPattern;
+
+    @Value("${app.rabbitmq.topic-patterns.dispatch:dispatch.#}")
+    private String dispatchTopicPattern;
+
+    @Value("${app.rabbitmq.topic-patterns.report:report.*}")
+    private String reportTopicPattern;
+
     //
     // 1. DECLARACIÓN DE EXCHANGES
     //
@@ -69,11 +88,15 @@ public class RabbitMQConfig {
 
     //
     // 2. DECLARACIÓN DE DEAD LETTER QUEUES (DLQ)
+    //    Todas las colas son quorum: se replican en los 2 nodos del clúster,
+    //    así un mensaje confirmado no se pierde si cae un nodo. Con 2 nodos la
+    //    mayoría es 2/2, por lo que la cola queda detenida hasta que el nodo vuelva.
     //
 
     @Bean
     public Queue emailDlq() {
         return QueueBuilder.durable(emailDlqName)
+                .quorum()
                 .withArgument("x-message-ttl", 86400000) // TTL de 24 horas en la DLQ
                 .build();
     }
@@ -81,6 +104,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue dispatchDlq() {
         return QueueBuilder.durable(dispatchDlqName)
+                .quorum()
                 .withArgument("x-message-ttl", 86400000)
                 .build();
     }
@@ -88,6 +112,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue reportDlq() {
         return QueueBuilder.durable(reportDlqName)
+                .quorum()
                 .withArgument("x-message-ttl", 86400000)
                 .build();
     }
@@ -99,24 +124,27 @@ public class RabbitMQConfig {
     @Bean
     public Queue emailQueue() {
         return QueueBuilder.durable(emailQueueName)
+                .quorum()
                 .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", "email.dead")
+                .withArgument("x-dead-letter-routing-key", emailDeadRoutingKey)
                 .build();
     }
 
     @Bean
     public Queue dispatchQueue() {
         return QueueBuilder.durable(dispatchQueueName)
+                .quorum()
                 .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", "dispatch.dead")
+                .withArgument("x-dead-letter-routing-key", dispatchDeadRoutingKey)
                 .build();
     }
 
     @Bean
     public Queue reportQueue() {
         return QueueBuilder.durable(reportQueueName)
+                .quorum()
                 .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", "report.dead")
+                .withArgument("x-dead-letter-routing-key", reportDeadRoutingKey)
                 .build();
     }
 
@@ -131,7 +159,7 @@ public class RabbitMQConfig {
 
     @Bean
     public Binding emailTopicBinding(Queue emailQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(emailQueue).to(cmdTopicExchange).with("email.*");
+        return BindingBuilder.bind(emailQueue).to(cmdTopicExchange).with(emailTopicPattern);
     }
 
     @Bean
@@ -141,7 +169,7 @@ public class RabbitMQConfig {
 
     @Bean
     public Binding dispatchTopicBinding(Queue dispatchQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(dispatchQueue).to(cmdTopicExchange).with("dispatch.#");
+        return BindingBuilder.bind(dispatchQueue).to(cmdTopicExchange).with(dispatchTopicPattern);
     }
 
     @Bean
@@ -151,7 +179,7 @@ public class RabbitMQConfig {
 
     @Bean
     public Binding reportTopicBinding(Queue reportQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(reportQueue).to(cmdTopicExchange).with("report.*");
+        return BindingBuilder.bind(reportQueue).to(cmdTopicExchange).with(reportTopicPattern);
     }
 
     //
@@ -160,16 +188,16 @@ public class RabbitMQConfig {
 
     @Bean
     public Binding emailDlqBinding(Queue emailDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(emailDlq).to(cmdDeadLetterExchange).with("email.dead");
+        return BindingBuilder.bind(emailDlq).to(cmdDeadLetterExchange).with(emailDeadRoutingKey);
     }
 
     @Bean
     public Binding dispatchDlqBinding(Queue dispatchDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(dispatchDlq).to(cmdDeadLetterExchange).with("dispatch.dead");
+        return BindingBuilder.bind(dispatchDlq).to(cmdDeadLetterExchange).with(dispatchDeadRoutingKey);
     }
 
     @Bean
     public Binding reportDlqBinding(Queue reportDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(reportDlq).to(cmdDeadLetterExchange).with("report.dead");
+        return BindingBuilder.bind(reportDlq).to(cmdDeadLetterExchange).with(reportDeadRoutingKey);
     }
 }

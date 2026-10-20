@@ -15,6 +15,9 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll() // Permitir salud pública
+                // Control de listeners: solo lo llama ms-admin-queues por la red interna digitalfix-net
+                // (el puerto 8083 no se publica); el BFF exige SUPERADMIN antes de llegar ahí.
+                .requestMatchers("/api/v1/listeners", "/api/v1/listeners/**").permitAll()
                 .anyRequest().authenticated()
             );
         return http.build();

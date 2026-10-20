@@ -1,6 +1,7 @@
 package df.digitalfix.ms.notify.service.impl;
 
 import df.digitalfix.ms.notify.dto.EmailNotificationDTO;
+import df.digitalfix.ms.notify.exceptions.EmailDeliveryException;
 import df.digitalfix.ms.notify.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -63,7 +64,7 @@ public class EmailServiceImpl implements EmailService {
 
         } catch (MessagingException e) {
             log.error("Error al construir o enviar el correo a {}: {}", emailDTO.getEmailTo(), e.getMessage(), e);
-            throw new RuntimeException("Error en el despacho de correo SMTP", e);
+            throw new EmailDeliveryException("Error en el despacho de correo SMTP", e);
         }
     }
 }

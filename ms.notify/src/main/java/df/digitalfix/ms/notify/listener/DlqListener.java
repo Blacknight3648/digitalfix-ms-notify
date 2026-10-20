@@ -1,6 +1,7 @@
 package df.digitalfix.ms.notify.listener;
 
 import com.rabbitmq.client.Channel;
+import df.digitalfix.ms.notify.messaging.ListenerIds;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -14,7 +15,7 @@ import java.io.IOException;
 @Component
 public class DlqListener {
 
-    @RabbitListener(queues = {
+    @RabbitListener(id = ListenerIds.DLQ, messageConverter = "rawMessageConverter", queues = {
             "${app.rabbitmq.queues.email-dlq:q.cmd.email.dlq}",
             "${app.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}",
             "${app.rabbitmq.queues.report-dlq:q.cmd.report.dlq}"
