@@ -1,203 +1,181 @@
 package df.digitalfix.ms.notify.config;
 
+import df.digitalfix.ms.notify.config.TopologiaRabbitProperties.Flujo;
 import org.springframework.amqp.core.*;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Topología RabbitMQ del caso DigitalFix (sección 8): 3 exchanges, 3 flujos con su DLQ (6 colas)
+ * y 9 bindings (direct, topic y DLQ por flujo), todos declarados como beans. Al arrancar, RabbitAdmin los crea en el broker si no
+ * existen (la declaración es idempotente). ms-notify es el dueño de la topología porque es quien
+ * consume; ms-workorders solo declara los exchanges donde publica.
+ * <p>
+ * Los nombres vienen de {@link TopologiaRabbitProperties} ({@code app.rabbitmq} en application.yaml).
+ * <p>
+ * Todas las colas son quorum: se replican en los 2 nodos del clúster, así un mensaje confirmado no
+ * se pierde si cae un nodo. Con 2 nodos la mayoría es 2/2, por lo que la cola queda detenida hasta
+ * que el nodo vuelva.
+ *
+ * <pre>
+ *   productor ──► cmd.direct ──email.send──────► q.cmd.email ──NACK──► cmd.dead.dlx ──email.dead──► q.cmd.email.dlq
+ *             └─► cmd.topic  ──email.*─────────┘
+ *   productor ──► cmd.direct ──dispatch.ticket─► q.cmd.dispatch ─NACK─► cmd.dead.dlx ─dispatch.dead─► q.cmd.dispatch.dlq
+ *             └─► cmd.topic  ──dispatch.#──────┘
+ *   productor ──► cmd.direct ──report.gen──────► q.cmd.report ──NACK──► cmd.dead.dlx ──report.dead──► q.cmd.report.dlq
+ *             └─► cmd.topic  ──report.*────────┘
+ * </pre>
+ */
 @Configuration
+@EnableConfigurationProperties(TopologiaRabbitProperties.class)
 public class RabbitMQConfig {
 
-    // Nombres de Exchanges
-    @Value("${app.rabbitmq.exchanges.direct:cmd.direct}")
-    private String directExchangeName;
+    private final TopologiaRabbitProperties topologia;
 
-    @Value("${app.rabbitmq.exchanges.topic:cmd.topic}")
-    private String topicExchangeName;
+    public RabbitMQConfig(TopologiaRabbitProperties topologia) {
+        this.topologia = topologia;
+    }
 
-    @Value("${app.rabbitmq.exchanges.dlx:cmd.dead.dlx}")
-    private String dlxExchangeName;
+    // =====================================================================
+    // EXCHANGES (compartidos por los tres flujos)
+    // =====================================================================
 
-    // Nombres de Colas Principales
-    @Value("${app.rabbitmq.queues.email:q.cmd.email}")
-    private String emailQueueName;
-
-    @Value("${app.rabbitmq.queues.dispatch:q.cmd.dispatch}")
-    private String dispatchQueueName;
-
-    @Value("${app.rabbitmq.queues.report:q.cmd.report}")
-    private String reportQueueName;
-
-    // Nombres de DLQs
-    @Value("${app.rabbitmq.queues.email-dlq:q.cmd.email.dlq}")
-    private String emailDlqName;
-
-    @Value("${app.rabbitmq.queues.dispatch-dlq:q.cmd.dispatch.dlq}")
-    private String dispatchDlqName;
-
-    @Value("${app.rabbitmq.queues.report-dlq:q.cmd.report.dlq}")
-    private String reportDlqName;
-
-    // Routing Keys
-    @Value("${app.rabbitmq.routing-keys.email-send:email.send}")
-    private String emailRoutingKey;
-
-    @Value("${app.rabbitmq.routing-keys.dispatch-ticket:dispatch.ticket}")
-    private String dispatchRoutingKey;
-
-    @Value("${app.rabbitmq.routing-keys.report-gen:report.gen}")
-    private String reportRoutingKey;
-
-    // Routing keys hacia la DLQ (x-dead-letter-routing-key) y patrones del exchange topic
-    @Value("${app.rabbitmq.routing-keys.email-dead:email.dead}")
-    private String emailDeadRoutingKey;
-
-    @Value("${app.rabbitmq.routing-keys.dispatch-dead:dispatch.dead}")
-    private String dispatchDeadRoutingKey;
-
-    @Value("${app.rabbitmq.routing-keys.report-dead:report.dead}")
-    private String reportDeadRoutingKey;
-
-    @Value("${app.rabbitmq.topic-patterns.email:email.*}")
-    private String emailTopicPattern;
-
-    @Value("${app.rabbitmq.topic-patterns.dispatch:dispatch.#}")
-    private String dispatchTopicPattern;
-
-    @Value("${app.rabbitmq.topic-patterns.report:report.*}")
-    private String reportTopicPattern;
-
-    //
-    // 1. DECLARACIÓN DE EXCHANGES
-    //
-
+    /** cmd.direct: comandos punto a punto, la routing key debe calzar exacto. */
     @Bean
     public DirectExchange cmdDirectExchange() {
-        return new DirectExchange(directExchangeName, true, false);
+        return ExchangeBuilder.directExchange(topologia.exchanges().direct()).durable(true).build();
     }
 
+    /** cmd.topic: los mismos comandos por patrón (email.*, dispatch.#, report.*). */
     @Bean
     public TopicExchange cmdTopicExchange() {
-        return new TopicExchange(topicExchangeName, true, false);
+        return ExchangeBuilder.topicExchange(topologia.exchanges().topic()).durable(true).build();
     }
 
+    /** cmd.dead.dlx: Dead Letter Exchange; recibe los mensajes rechazados (NACK sin requeue). */
     @Bean
     public DirectExchange cmdDeadLetterExchange() {
-        return new DirectExchange(dlxExchangeName, true, false);
+        return ExchangeBuilder.directExchange(topologia.exchanges().dlx()).durable(true).build();
     }
 
-    //
-    // 2. DECLARACIÓN DE DEAD LETTER QUEUES (DLQ)
-    //    Todas las colas son quorum: se replican en los 2 nodos del clúster,
-    //    así un mensaje confirmado no se pierde si cae un nodo. Con 2 nodos la
-    //    mayoría es 2/2, por lo que la cola queda detenida hasta que el nodo vuelva.
-    //
+    // =====================================================================
+    // FLUJO 1 · EMAIL / PUSH AL CLIENTE
+    // Orden creada, asignada, técnico en camino, cerrada → correo HTML (EmailListener).
+    // =====================================================================
+
+    @Bean
+    public Queue emailQueue() {
+        return colaPrincipal(topologia.flujos().email());
+    }
 
     @Bean
     public Queue emailDlq() {
-        return QueueBuilder.durable(emailDlqName)
-                .quorum()
-                .withArgument("x-message-ttl", 86400000) // TTL de 24 horas en la DLQ
-                .build();
+        return colaMuerta(topologia.flujos().email());
+    }
+
+    /** cmd.direct ──email.send──► q.cmd.email */
+    @Bean
+    public Binding emailDirectBinding() {
+        return BindingBuilder.bind(emailQueue()).to(cmdDirectExchange()).with(topologia.flujos().email().routingKey());
+    }
+
+    /** cmd.topic ──email.*──► q.cmd.email */
+    @Bean
+    public Binding emailTopicBinding() {
+        return BindingBuilder.bind(emailQueue()).to(cmdTopicExchange()).with(topologia.flujos().email().patronTopic());
+    }
+
+    /** cmd.dead.dlx ──email.dead──► q.cmd.email.dlq */
+    @Bean
+    public Binding emailDlqBinding() {
+        return BindingBuilder.bind(emailDlq()).to(cmdDeadLetterExchange()).with(topologia.flujos().email().routingKeyDlq());
+    }
+
+    // =====================================================================
+    // FLUJO 2 · TICKET DE DESPACHO AL TÉCNICO
+    // Cuadrilla asignada a la orden → ticket de terreno (DispatchListener).
+    // =====================================================================
+
+    @Bean
+    public Queue dispatchQueue() {
+        return colaPrincipal(topologia.flujos().dispatch());
     }
 
     @Bean
     public Queue dispatchDlq() {
-        return QueueBuilder.durable(dispatchDlqName)
-                .quorum()
-                .withArgument("x-message-ttl", 86400000)
-                .build();
+        return colaMuerta(topologia.flujos().dispatch());
+    }
+
+    /** cmd.direct ──dispatch.ticket──► q.cmd.dispatch */
+    @Bean
+    public Binding dispatchDirectBinding() {
+        return BindingBuilder.bind(dispatchQueue()).to(cmdDirectExchange()).with(topologia.flujos().dispatch().routingKey());
+    }
+
+    /** cmd.topic ──dispatch.#──► q.cmd.dispatch */
+    @Bean
+    public Binding dispatchTopicBinding() {
+        return BindingBuilder.bind(dispatchQueue()).to(cmdTopicExchange()).with(topologia.flujos().dispatch().patronTopic());
+    }
+
+    /** cmd.dead.dlx ──dispatch.dead──► q.cmd.dispatch.dlq */
+    @Bean
+    public Binding dispatchDlqBinding() {
+        return BindingBuilder.bind(dispatchDlq()).to(cmdDeadLetterExchange()).with(topologia.flujos().dispatch().routingKeyDlq());
+    }
+
+    // =====================================================================
+    // FLUJO 3 · INFORME TÉCNICO / CERTIFICADO PDF
+    // Orden cerrada → informe de cierre en PDF (ReportListener).
+    // =====================================================================
+
+    @Bean
+    public Queue reportQueue() {
+        return colaPrincipal(topologia.flujos().report());
     }
 
     @Bean
     public Queue reportDlq() {
-        return QueueBuilder.durable(reportDlqName)
+        return colaMuerta(topologia.flujos().report());
+    }
+
+    /** cmd.direct ──report.gen──► q.cmd.report */
+    @Bean
+    public Binding reportDirectBinding() {
+        return BindingBuilder.bind(reportQueue()).to(cmdDirectExchange()).with(topologia.flujos().report().routingKey());
+    }
+
+    /** cmd.topic ──report.*──► q.cmd.report */
+    @Bean
+    public Binding reportTopicBinding() {
+        return BindingBuilder.bind(reportQueue()).to(cmdTopicExchange()).with(topologia.flujos().report().patronTopic());
+    }
+
+    /** cmd.dead.dlx ──report.dead──► q.cmd.report.dlq */
+    @Bean
+    public Binding reportDlqBinding() {
+        return BindingBuilder.bind(reportDlq()).to(cmdDeadLetterExchange()).with(topologia.flujos().report().routingKeyDlq());
+    }
+
+    // =====================================================================
+    // Construcción común de colas
+    // =====================================================================
+
+    /** Cola de trabajo: lo que se rechaza con NACK sin requeue va al DLX con la routing key de su DLQ. */
+    private Queue colaPrincipal(Flujo flujo) {
+        return QueueBuilder.durable(flujo.cola())
                 .quorum()
-                .withArgument("x-message-ttl", 86400000)
+                .deadLetterExchange(topologia.exchanges().dlx())
+                .deadLetterRoutingKey(flujo.routingKeyDlq())
                 .build();
     }
 
-    //
-    // 3. DECLARACIÓN DE COLAS PRINCIPALES CON CONFIGURACIÓN DLX
-    //
-
-    @Bean
-    public Queue emailQueue() {
-        return QueueBuilder.durable(emailQueueName)
+    /** DLQ: guarda los mensajes fallidos para revisarlos (DlqListener los registra en el log). */
+    private Queue colaMuerta(Flujo flujo) {
+        return QueueBuilder.durable(flujo.dlq())
                 .quorum()
-                .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", emailDeadRoutingKey)
+                .ttl((int) topologia.dlqTtl().toMillis())
                 .build();
-    }
-
-    @Bean
-    public Queue dispatchQueue() {
-        return QueueBuilder.durable(dispatchQueueName)
-                .quorum()
-                .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", dispatchDeadRoutingKey)
-                .build();
-    }
-
-    @Bean
-    public Queue reportQueue() {
-        return QueueBuilder.durable(reportQueueName)
-                .quorum()
-                .withArgument("x-dead-letter-exchange", dlxExchangeName)
-                .withArgument("x-dead-letter-routing-key", reportDeadRoutingKey)
-                .build();
-    }
-
-    //
-    // 4. BINDINGS EN COLAS PRINCIPALES (DIRECT Y TOPIC)
-    //
-
-    @Bean
-    public Binding emailDirectBinding(Queue emailQueue, DirectExchange cmdDirectExchange) {
-        return BindingBuilder.bind(emailQueue).to(cmdDirectExchange).with(emailRoutingKey);
-    }
-
-    @Bean
-    public Binding emailTopicBinding(Queue emailQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(emailQueue).to(cmdTopicExchange).with(emailTopicPattern);
-    }
-
-    @Bean
-    public Binding dispatchDirectBinding(Queue dispatchQueue, DirectExchange cmdDirectExchange) {
-        return BindingBuilder.bind(dispatchQueue).to(cmdDirectExchange).with(dispatchRoutingKey);
-    }
-
-    @Bean
-    public Binding dispatchTopicBinding(Queue dispatchQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(dispatchQueue).to(cmdTopicExchange).with(dispatchTopicPattern);
-    }
-
-    @Bean
-    public Binding reportDirectBinding(Queue reportQueue, DirectExchange cmdDirectExchange) {
-        return BindingBuilder.bind(reportQueue).to(cmdDirectExchange).with(reportRoutingKey);
-    }
-
-    @Bean
-    public Binding reportTopicBinding(Queue reportQueue, TopicExchange cmdTopicExchange) {
-        return BindingBuilder.bind(reportQueue).to(cmdTopicExchange).with(reportTopicPattern);
-    }
-
-    //
-    // 5. BINDINGS PARA DEAD LETTER QUEUES (DLX)
-    //
-
-    @Bean
-    public Binding emailDlqBinding(Queue emailDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(emailDlq).to(cmdDeadLetterExchange).with(emailDeadRoutingKey);
-    }
-
-    @Bean
-    public Binding dispatchDlqBinding(Queue dispatchDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(dispatchDlq).to(cmdDeadLetterExchange).with(dispatchDeadRoutingKey);
-    }
-
-    @Bean
-    public Binding reportDlqBinding(Queue reportDlq, DirectExchange cmdDeadLetterExchange) {
-        return BindingBuilder.bind(reportDlq).to(cmdDeadLetterExchange).with(reportDeadRoutingKey);
     }
 }

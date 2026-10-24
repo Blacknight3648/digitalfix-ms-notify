@@ -25,7 +25,7 @@ ms-workorders ──(cmd.direct)──► q.cmd.email    ──► EmailListener
 * **Lenguaje y framework:** Java 21 / Spring Boot 4.0.8
 * **Mensajería asíncrona:** Spring AMQP / RabbitMQ (ACK manual, `prefetch: 1`)
 * **Correo:** Spring Boot Starter Mail (`JavaMailSender`) + plantillas Thymeleaf
-* **Base de datos y migraciones:** Oracle Autonomous Database (wallet) y Flyway
+* **Sin base de datos** (caso, sección 5): el estado de cada mensaje vive en sus colas y DLQ
 * **Documentación y diagnóstico:** SpringDoc OpenAPI / Spring Boot Actuator
 * **Contenerización:** Dockerfile multi-stage (usuario no-root)
 
@@ -33,9 +33,9 @@ ms-workorders ──(cmd.direct)──► q.cmd.email    ──► EmailListener
 
 | Paquete | Contenido |
 | :--- | :--- |
-| `config/` | `RabbitMQConfig` (beans de Queue, Exchange y Binding), `JacksonConfig` (convertidores), `SecurityConfig`. |
+| `config/` | `TopologiaRabbitProperties` (nombres de la topología, validados al arrancar), `RabbitMQConfig` (beans de Queue, Exchange y Binding por caso de uso), `JacksonConfig` (convertidores), `SecurityConfig`. |
 | `listener/` | Un consumidor por dominio: `EmailListener`, `DispatchListener`, `ReportListener` y `DlqListener`. |
-| `messaging/` | `ManejadorFallosMensajeria` (política de errores) y `ListenerIds`. |
+| `messaging/` | `ManejadorFallosMensajeria` (política de errores), `ValidadorMensajes` (Bean Validation del payload) y `ListenerIds`. |
 | `service/` | Lógica de negocio: `EmailService`, `DispatchService`, `ReportService` y `ListenerAdminService`. |
 | `dto/` | `EventEnvelopeDTO<T>` y los payloads de cada caso de uso. |
 | `controller/` | `ListenerAdminController` (control de consumidores). |
@@ -46,7 +46,7 @@ La configuración de mensajería está aislada en `config/`. Los listeners solo 
 
 ## 📬 Topología de RabbitMQ
 
-Todos los nombres están centralizados en `application.yaml` (bloque `app.rabbitmq`) y se declaran como `@Bean` en `RabbitMQConfig`.
+Todos los nombres están centralizados en `application.yaml` (bloque `app.rabbitmq.flujos`, uno por caso de uso) y se leen con `TopologiaRabbitProperties`, sin valores por defecto en el código. `RabbitMQConfig` declara cada flujo como `@Bean` (cola, DLQ y sus tres bindings) y los listeners referencian la cola por su bean (`#{emailQueue.name}`). `RabbitMQConfigTest` verifica la topología contra la tabla del caso usando el yaml real.
 
 | Cola principal | Propósito | Exchange / binding | DLQ (vía `cmd.dead.dlx`) |
 | :--- | :--- | :--- | :--- |
@@ -55,6 +55,8 @@ Todos los nombres están centralizados en `application.yaml` (bloque `app.rabbit
 | `q.cmd.report` | Informe de cierre o certificado técnico en PDF. | `cmd.direct` (`report.gen`) / `cmd.topic` (`report.*`) | `q.cmd.report.dlq` (`report.dead`) |
 
 Las DLQ tienen un TTL de 24 h.
+
+ms-workorders publica las notificaciones al cliente en `cmd.topic` con `email.<estado>` (`email.creada`, `email.asignada`, `email.cerrada`…), que calzan con `email.*`; el despacho y el informe van por `cmd.direct`. `EmailListener` registra en el log el exchange y la routing key con que llegó cada mensaje.
 
 ---
 
@@ -132,11 +134,6 @@ Estos endpoints solo son accesibles dentro de `digitalfix-net`, porque el puerto
 
 ```env
 PORT=8083
-
-# Base de datos Oracle Autonomous (con wallet)
-SPRING_DATASOURCE_URL=jdbc:oracle:thin:@<alias>_high?TNS_ADMIN=./wallet
-SPRING_DATASOURCE_USERNAME=<usuario_bd>
-SPRING_DATASOURCE_PASSWORD=<contrasena_bd>
 
 # RabbitMQ (en Docker: RABBITMQ_HOST=rabbitmq)
 RABBITMQ_HOST=localhost

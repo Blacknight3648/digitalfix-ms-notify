@@ -4,9 +4,9 @@ import com.rabbitmq.client.Channel;
 import df.digitalfix.ms.notify.dto.EventEnvelopeDTO;
 import df.digitalfix.ms.notify.dto.ReportGenerationDTO;
 import df.digitalfix.ms.notify.service.ReportService;
-import df.digitalfix.ms.notify.exceptions.InvalidPayloadException;
 import df.digitalfix.ms.notify.messaging.ListenerIds;
 import df.digitalfix.ms.notify.messaging.ManejadorFallosMensajeria;
+import df.digitalfix.ms.notify.messaging.ValidadorMensajes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
@@ -25,29 +25,29 @@ public class ReportListener {
 
     private final ReportService reportService;
     private final ManejadorFallosMensajeria manejadorFallos;
+    private final ValidadorMensajes validador;
 
-    @RabbitListener(id = ListenerIds.REPORT, queues = "${app.rabbitmq.queues.report:q.cmd.report}")
+    @RabbitListener(id = ListenerIds.REPORT, queues = "#{reportQueue.name}")
     public void consumeReportGeneration(
             @Payload EventEnvelopeDTO<ReportGenerationDTO> envelope,
             Message message,
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
 
-        log.info("[COLA REPORTES - q.cmd.report] Solicitud de informe/certificado PDF recibida | Evento: {} | EventID: {} | Tipo: {}", 
+        log.info("[COLA REPORTES] Solicitud de informe/certificado PDF recibida | Evento: {} | EventID: {} | Tipo: {}", 
                 envelope.getEventType(), 
                 envelope.getEventId(),
                 envelope.getData() != null ? envelope.getData().getReportType() : "N/A");
 
         try {
-            if (envelope.getData() == null) {
-                throw new InvalidPayloadException("El evento " + envelope.getEventId() + " llegó sin 'data'");
-            }
+            // Payload inválido (campo obligatorio vacío, correo mal formado...) → error definitivo → DLQ
+            ReportGenerationDTO data = validador.validar(envelope);
             // Genera y despacha el informe o certificado PDF
-            reportService.generateAndSendReport(envelope.getData());
+            reportService.generateAndSendReport(data);
 
             // ACK Manual
             channel.basicAck(deliveryTag, false);
-            log.info("[COLA REPORTES - q.cmd.report] ACK confirmado. Reporte generado y procesado exitosamente para EventID: {}", envelope.getEventId());
+            log.info("[COLA REPORTES] ACK confirmado. Reporte generado y procesado exitosamente para EventID: {}", envelope.getEventId());
 
         } catch (Exception e) {
             log.error("[COLA REPORT] Error al procesar el evento (EventID: {}): {}", envelope.getEventId(), e.getMessage());
