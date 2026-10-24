@@ -14,33 +14,8 @@ spring:
       - optional:file:ms.notify/.env[.properties]
       - optional:file:../.env[.properties]
 
-  # -------------------------------------------------------------------
-  # Configuración de Base de Datos Oracle Autonomous (con Wallet)
-  # -------------------------------------------------------------------
-  datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: oracle.jdbc.OracleDriver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 30000
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.OracleDialect
-        format_sql: true
-
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    baseline-version: 0
-    table: flyway_schema_history_notify
-    locations: classpath:db/migration
+  # Sin base de datos (caso, sección 5: ms-digitalfix-notify "sin DB"): solo consume RabbitMQ
+  # y envía correos; el estado de cada mensaje vive en las colas y en sus DLQ.
 
   # -------------------------------------------------------------------
   # Configuración de RabbitMQ

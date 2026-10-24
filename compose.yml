@@ -38,10 +38,6 @@ services:
     environment:
       - PORT=${PORT:-8083}
       - SERVER_PORT=${SERVER_PORT:-8083}
-      # Base de Datos Oracle Autonomous (con Wallet)
-      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       # Conexión a RabbitMQ
       - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
       - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
@@ -55,9 +51,6 @@ services:
       - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
       - JAVA_OPTS=-Djava.net.preferIPv4Stack=true
-    volumes:
-      # Montaje del Wallet mTLS de Oracle Cloud
-      - ./wallet:/app/wallet:ro
     networks:
       - digitalfix-net
     depends_on:
