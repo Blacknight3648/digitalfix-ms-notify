@@ -1,13 +1,13 @@
 package df.digitalfix.ms.notify.messaging;
 
 import com.rabbitmq.client.Channel;
+import df.digitalfix.ms.notify.config.TopologiaRabbitProperties;
 import df.digitalfix.ms.notify.exceptions.InvalidPayloadException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.MessageConversionException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.exceptions.TemplateInputException;
 
@@ -35,9 +35,7 @@ public class ManejadorFallosMensajeria {
     public static final String HEADER_REINTENTOS = "x-retry-count";
 
     private final RabbitTemplate rabbitTemplate;
-
-    @Value("${app.rabbitmq.retry.max-attempts:3}")
-    private int maxIntentos;
+    private final TopologiaRabbitProperties topologia;
 
     public void resolver(Message mensaje, Channel canal, long deliveryTag, Exception error) throws IOException {
         String cola = mensaje.getMessageProperties().getConsumerQueue();
@@ -50,6 +48,7 @@ public class ManejadorFallosMensajeria {
         }
 
         int intentos = intentosPrevios(mensaje);
+        int maxIntentos = topologia.retry().maxAttempts();
         if (intentos >= maxIntentos) {
             log.error("[{}] Error transitorio tras {} reintentos: {}. NACK sin requeue → DLQ.",
                     cola, intentos, error.getMessage());

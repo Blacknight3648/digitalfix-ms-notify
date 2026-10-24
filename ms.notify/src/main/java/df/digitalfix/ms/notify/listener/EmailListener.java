@@ -4,9 +4,9 @@ import com.rabbitmq.client.Channel;
 import df.digitalfix.ms.notify.dto.EmailNotificationDTO;
 import df.digitalfix.ms.notify.dto.EventEnvelopeDTO;
 import df.digitalfix.ms.notify.service.EmailService;
-import df.digitalfix.ms.notify.exceptions.InvalidPayloadException;
 import df.digitalfix.ms.notify.messaging.ListenerIds;
 import df.digitalfix.ms.notify.messaging.ManejadorFallosMensajeria;
+import df.digitalfix.ms.notify.messaging.ValidadorMensajes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
@@ -25,29 +25,32 @@ public class EmailListener {
 
     private final EmailService emailService;
     private final ManejadorFallosMensajeria manejadorFallos;
+    private final ValidadorMensajes validador;
 
-    @RabbitListener(id = ListenerIds.EMAIL, queues = "${app.rabbitmq.queues.email:q.cmd.email}")
+    @RabbitListener(id = ListenerIds.EMAIL, queues = "#{emailQueue.name}")
     public void consumeEmailNotification(
             @Payload EventEnvelopeDTO<EmailNotificationDTO> envelope,
             Message message,
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
 
-        log.info("[COLA EMAIL - q.cmd.email] Nueva notificación recibida para despacho | Evento: {} | EventID: {} | Destinatario: {}", 
-                envelope.getEventType(), 
-                envelope.getEventId(), 
+        // Exchange y routing key de llegada: por cmd.topic con email.<estado> o por cmd.direct con email.send
+        log.info("[COLA EMAIL] Nueva notificación recibida vía {} ({}) | Evento: {} | EventID: {} | Destinatario: {}",
+                message.getMessageProperties().getReceivedExchange(),
+                message.getMessageProperties().getReceivedRoutingKey(),
+                envelope.getEventType(),
+                envelope.getEventId(),
                 envelope.getData() != null ? envelope.getData().getEmailTo() : "N/A");
 
         try {
-            if (envelope.getData() == null) {
-                throw new InvalidPayloadException("El evento " + envelope.getEventId() + " llegó sin 'data'");
-            }
+            // Payload inválido (campo obligatorio vacío, correo mal formado...) → error definitivo → DLQ
+            EmailNotificationDTO data = validador.validar(envelope);
             // Procesa el envío de la plantilla HTML mediante JavaMailSender
-            emailService.sendHtmlEmail(envelope.getData());
+            emailService.sendHtmlEmail(data);
 
             // ACK Manual: Confirma procesamiento exitoso a RabbitMQ
             channel.basicAck(deliveryTag, false);
-            log.info("[COLA EMAIL - q.cmd.email] ACK confirmado. Correo despachado exitosamente para EventID: {}", envelope.getEventId());
+            log.info("[COLA EMAIL] ACK confirmado. Correo despachado exitosamente para EventID: {}", envelope.getEventId());
 
         } catch (Exception e) {
             log.error("[COLA EMAIL] Error al procesar el evento (EventID: {}): {}", envelope.getEventId(), e.getMessage());

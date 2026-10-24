@@ -87,32 +87,37 @@ management:
       enabled: false
 
 # -------------------------------------------------------------------
-# Centralización de Nombres de Topología RabbitMQ
+# Topología RabbitMQ (caso, sección 8): única fuente de nombres de colas, exchanges y routing keys.
+# La lee TopologiaRabbitProperties y se valida al arrancar; RabbitMQConfig declara los beans y los
+# listeners referencian esas colas por bean. Un flujo por caso de uso, cada uno con su DLQ.
 # -------------------------------------------------------------------
 app:
   rabbitmq:
     exchanges:
-      direct: cmd.direct
-      topic: cmd.topic
-      dlx: cmd.dead.dlx
-    queues:
-      email: q.cmd.email
-      email-dlq: q.cmd.email.dlq
-      dispatch: q.cmd.dispatch
-      dispatch-dlq: q.cmd.dispatch.dlq
-      report: q.cmd.report
-      report-dlq: q.cmd.report.dlq
-    routing-keys:
-      email-send: email.send
-      dispatch-ticket: dispatch.ticket
-      report-gen: report.gen
-      email-dead: email.dead
-      dispatch-dead: dispatch.dead
-      report-dead: report.dead
-    topic-patterns:
-      email: email.*
-      dispatch: dispatch.#
-      report: report.*
+      direct: cmd.direct      # comandos por routing key exacta
+      topic: cmd.topic        # los mismos comandos por patrón
+      dlx: cmd.dead.dlx       # Dead Letter Exchange (direct) hacia las DLQ
+    flujos:
+      email:                  # Email/push al cliente (asignada, técnico en camino, cerrada)
+        cola: q.cmd.email
+        dlq: q.cmd.email.dlq
+        routing-key: email.send
+        patron-topic: email.*
+        routing-key-dlq: email.dead
+      dispatch:               # Ticket de despacho / orden de terreno al técnico
+        cola: q.cmd.dispatch
+        dlq: q.cmd.dispatch.dlq
+        routing-key: dispatch.ticket
+        patron-topic: dispatch.#
+        routing-key-dlq: dispatch.dead
+      report:                 # Generación de PDF (informe técnico o certificado de trabajo)
+        cola: q.cmd.report
+        dlq: q.cmd.report.dlq
+        routing-key: report.gen
+        patron-topic: report.*
+        routing-key-dlq: report.dead
+    # Tiempo que un mensaje fallido se conserva en su DLQ para revisarlo
+    dlq-ttl: 24h
     # Errores transitorios (SMTP caído, timeout): reintentos antes de derivar a la DLQ
     retry:
       max-attempts: 3
