@@ -5,7 +5,6 @@ import df.digitalfix.ms.notify.dto.DispatchTicketDTO;
 import df.digitalfix.ms.notify.dto.EventEnvelopeDTO;
 import df.digitalfix.ms.notify.service.DispatchService;
 import df.digitalfix.ms.notify.messaging.ListenerIds;
-import df.digitalfix.ms.notify.messaging.ManejadorFallosMensajeria;
 import df.digitalfix.ms.notify.messaging.ValidadorMensajes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,10 +23,9 @@ import java.io.IOException;
 public class DispatchListener {
 
     private final DispatchService dispatchService;
-    private final ManejadorFallosMensajeria manejadorFallos;
     private final ValidadorMensajes validador;
 
-    @RabbitListener(id = ListenerIds.DISPATCH, queues = "#{dispatchQueue.name}")
+    @RabbitListener(id = ListenerIds.DISPATCH, queues = "q.cmd.dispatch")
     public void consumeDispatchTicket(
             @Payload EventEnvelopeDTO<DispatchTicketDTO> envelope,
             Message message,
@@ -40,7 +38,6 @@ public class DispatchListener {
                 envelope.getData() != null ? envelope.getData().getWorkOrderId() : "N/A");
 
         try {
-            // Payload inválido (campo obligatorio vacío, correo mal formado...) → error definitivo → DLQ
             DispatchTicketDTO data = validador.validar(envelope);
             // Procesa la generación del ticket técnico de terreno
             dispatchService.processDispatchTicket(data);
@@ -51,8 +48,7 @@ public class DispatchListener {
 
         } catch (Exception e) {
             log.error("[COLA DISPATCH] Error al procesar el evento (EventID: {}): {}", envelope.getEventId(), e.getMessage());
-            // Error definitivo → DLQ; error transitorio → reintento con límite (ver ManejadorFallosMensajeria)
-            manejadorFallos.resolver(message, channel, deliveryTag, e);
+            channel.basicNack(deliveryTag, false, false);
         }
     }
 }

@@ -5,7 +5,6 @@ import df.digitalfix.ms.notify.dto.EmailNotificationDTO;
 import df.digitalfix.ms.notify.dto.EventEnvelopeDTO;
 import df.digitalfix.ms.notify.service.EmailService;
 import df.digitalfix.ms.notify.messaging.ListenerIds;
-import df.digitalfix.ms.notify.messaging.ManejadorFallosMensajeria;
 import df.digitalfix.ms.notify.messaging.ValidadorMensajes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,10 +23,9 @@ import java.io.IOException;
 public class EmailListener {
 
     private final EmailService emailService;
-    private final ManejadorFallosMensajeria manejadorFallos;
     private final ValidadorMensajes validador;
 
-    @RabbitListener(id = ListenerIds.EMAIL, queues = "#{emailQueue.name}")
+    @RabbitListener(id = ListenerIds.EMAIL, queues = "q.cmd.email")
     public void consumeEmailNotification(
             @Payload EventEnvelopeDTO<EmailNotificationDTO> envelope,
             Message message,
@@ -43,7 +41,6 @@ public class EmailListener {
                 envelope.getData() != null ? envelope.getData().getEmailTo() : "N/A");
 
         try {
-            // Payload inválido (campo obligatorio vacío, correo mal formado...) → error definitivo → DLQ
             EmailNotificationDTO data = validador.validar(envelope);
             // Procesa el envío de la plantilla HTML mediante JavaMailSender
             emailService.sendHtmlEmail(data);
@@ -54,8 +51,7 @@ public class EmailListener {
 
         } catch (Exception e) {
             log.error("[COLA EMAIL] Error al procesar el evento (EventID: {}): {}", envelope.getEventId(), e.getMessage());
-            // Error definitivo → DLQ; error transitorio → reintento con límite (ver ManejadorFallosMensajeria)
-            manejadorFallos.resolver(message, channel, deliveryTag, e);
+            channel.basicNack(deliveryTag, false, false);
         }
     }
 }

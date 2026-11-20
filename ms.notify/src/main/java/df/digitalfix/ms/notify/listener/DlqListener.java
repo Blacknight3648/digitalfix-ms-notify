@@ -16,9 +16,9 @@ import java.io.IOException;
 public class DlqListener {
 
     @RabbitListener(id = ListenerIds.DLQ, messageConverter = "rawMessageConverter", queues = {
-            "#{emailDlq.name}",
-            "#{dispatchDlq.name}",
-            "#{reportDlq.name}"
+            "q.cmd.email.dlq",
+            "q.cmd.dispatch.dlq",
+            "q.cmd.report.dlq"
     })
     public void processQuarantineMessage(
             Message message,

@@ -27,7 +27,7 @@ public class ReportListener {
     private final ManejadorFallosMensajeria manejadorFallos;
     private final ValidadorMensajes validador;
 
-    @RabbitListener(id = ListenerIds.REPORT, queues = "#{reportQueue.name}")
+    @RabbitListener(id = ListenerIds.REPORT, queues = "q.cmd.report")
     public void consumeReportGeneration(
             @Payload EventEnvelopeDTO<ReportGenerationDTO> envelope,
             Message message,

@@ -35,7 +35,7 @@ class ManejadorFallosMensajeriaTest {
     void setUp() {
         rabbitTemplate = mock(RabbitTemplate.class);
         canal = mock(Channel.class);
-        TopologiaRabbitProperties topologia = new TopologiaRabbitProperties(null, null, Duration.ofHours(24),
+        TopologiaRabbitProperties topologia = new TopologiaRabbitProperties(null,
                 new TopologiaRabbitProperties.Reintentos(3));
         manejador = new ManejadorFallosMensajeria(rabbitTemplate, topologia);
     }
@@ -74,8 +74,9 @@ class ManejadorFallosMensajeriaTest {
 
         ArgumentCaptor<Message> copia = ArgumentCaptor.forClass(Message.class);
         verify(rabbitTemplate).send(eq(""), eq(COLA), copia.capture());
-        assertThat((Integer) copia.getValue().getMessageProperties().getHeader(ManejadorFallosMensajeria.HEADER_REINTENTOS))
-                .isEqualTo(2);
+        Integer reintentos = copia.getValue().getMessageProperties()
+                .getHeader(ManejadorFallosMensajeria.HEADER_REINTENTOS);
+        assertThat(reintentos).isEqualTo(2);
         verify(canal).basicAck(TAG, false);
         verify(canal, never()).basicNack(anyLong(), anyBoolean(), anyBoolean());
     }
