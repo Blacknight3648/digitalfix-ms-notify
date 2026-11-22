@@ -1,4 +1,4 @@
-package df.digitalfix.ms.notify.messaging;
+package df.digitalfix.ms.notify.validation;
 
 import df.digitalfix.ms.notify.dto.EventEnvelopeDTO;
 import df.digitalfix.ms.notify.exceptions.InvalidPayloadException;
@@ -14,8 +14,8 @@ import java.util.stream.Collectors;
 /**
  * Aplica las anotaciones de Bean Validation del sobre y de su {@code data} (@Valid en cascada)
  * antes de procesar un mensaje. Un mensaje inválido no mejora reintentándolo, por eso se lanza
- * {@link InvalidPayloadException}: {@link ManejadorFallosMensajeria} lo trata como error
- * definitivo (NACK sin requeue → DLQ) y el detalle queda en el log.
+ * {@link InvalidPayloadException}: se responde 400 y ms-admin-queues, que entrega el mensaje, lo
+ * trata como error definitivo (NACK sin requeue → DLQ). El detalle queda en el log.
  */
 @Component
 @RequiredArgsConstructor

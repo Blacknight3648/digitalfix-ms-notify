@@ -1,4 +1,4 @@
-package df.digitalfix.ms.notify.messaging;
+package df.digitalfix.ms.notify.validation;
 
 import df.digitalfix.ms.notify.dto.EmailNotificationDTO;
 import df.digitalfix.ms.notify.dto.EventEnvelopeDTO;

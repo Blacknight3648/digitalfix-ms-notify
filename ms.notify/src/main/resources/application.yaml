@@ -14,30 +14,9 @@ spring:
       - optional:file:ms.notify/.env[.properties]
       - optional:file:../.env[.properties]
 
-  # Sin base de datos (caso, sección 5: ms-digitalfix-notify "sin DB"): solo consume RabbitMQ
-  # y envía correos; el estado de cada mensaje vive en las colas y en sus DLQ.
-
-  # -------------------------------------------------------------------
-  # Configuración de RabbitMQ
-  # -------------------------------------------------------------------
-  rabbitmq:
-    # Nodos del clúster separados por coma: si se cae uno, el cliente reconecta al otro.
-    # Sin RABBITMQ_ADDRESSES se usa RABBITMQ_HOST:RABBITMQ_PORT (un solo nodo).
-    addresses: ${RABBITMQ_ADDRESSES:${RABBITMQ_HOST:localhost}:${RABBITMQ_PORT:5672}}
-    address-shuffle-mode: random  # reparte las conexiones entre los nodos
-    username: ${RABBITMQ_USERNAME:admin}
-    password: ${RABBITMQ_PASSWORD:admin123}
-    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
-    listener:
-      simple:
-        acknowledge-mode: manual  # ACK/NACK explícito para consumo seguro
-        prefetch: 1               # Procesa 1 mensaje por hilo
-        concurrency: 1            # Hilos mínimos de consumo
-        max-concurrency: 3        # Hilos máximos de consumo
-        # Con ACK manual los listeners capturan sus errores, así que el retry del contenedor no
-        # actuaría: los reintentos los maneja ManejadorFallosMensajeria (app.rabbitmq.retry).
-        retry:
-          enabled: false
+  # Sin base de datos (caso, sección 5: ms-digitalfix-notify "sin DB") y sin conexión a RabbitMQ:
+  # ms-admin-queues consume las colas y entrega cada mensaje en /internal/v1/notificaciones/*.
+  # Este servicio solo contiene la lógica de negocio (correo, despacho, informe).
 
   # -------------------------------------------------------------------
   # Configuración del Servidor SMTP (Java Mail Sender)
@@ -81,43 +60,5 @@ management:
       probes:
         enabled: true
   health:
-    rabbitmq:
-      enabled: true
     mail:
       enabled: false
-
-# -------------------------------------------------------------------
-# Topología RabbitMQ (caso, sección 8): única fuente de nombres de colas, exchanges y routing keys.
-# La lee TopologiaRabbitProperties y se valida al arrancar; RabbitMQConfig declara los beans y los
-# listeners referencian esas colas por bean. Un flujo por caso de uso, cada uno con su DLQ.
-# -------------------------------------------------------------------
-app:
-  rabbitmq:
-    exchanges:
-      direct: cmd.direct      # comandos por routing key exacta
-      topic: cmd.topic        # los mismos comandos por patrón
-      dlx: cmd.dead.dlx       # Dead Letter Exchange (direct) hacia las DLQ
-    flujos:
-      email:                  # Email/push al cliente (asignada, técnico en camino, cerrada)
-        cola: q.cmd.email
-        dlq: q.cmd.email.dlq
-        routing-key: email.send
-        patron-topic: email.*
-        routing-key-dlq: email.dead
-      dispatch:               # Ticket de despacho / orden de terreno al técnico
-        cola: q.cmd.dispatch
-        dlq: q.cmd.dispatch.dlq
-        routing-key: dispatch.ticket
-        patron-topic: dispatch.#
-        routing-key-dlq: dispatch.dead
-      report:                 # Generación de PDF (informe técnico o certificado de trabajo)
-        cola: q.cmd.report
-        dlq: q.cmd.report.dlq
-        routing-key: report.gen
-        patron-topic: report.*
-        routing-key-dlq: report.dead
-    # Tiempo que un mensaje fallido se conserva en su DLQ para revisarlo
-    dlq-ttl: 24h
-    # Errores transitorios (SMTP caído, timeout): reintentos antes de derivar a la DLQ
-    retry:
-      max-attempts: 3

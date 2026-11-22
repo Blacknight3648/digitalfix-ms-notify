@@ -1,5 +1,6 @@
 package df.digitalfix.ms.notify.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +11,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
+// Lector tolerante: el productor puede enviar campos extra (crewId, orderStatus...) sin que el
+// mensaje se rechace y termine en la DLQ.
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Data
 @Builder
 @NoArgsConstructor
