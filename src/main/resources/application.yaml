@@ -19,19 +19,26 @@ spring:
   # Este servicio solo contiene la lógica de negocio (correo, despacho, informe).
 
   # -------------------------------------------------------------------
-  # Configuración del Servidor SMTP (Java Mail Sender)
+  # Configuración del Servidor SMTP (Java Mail Sender - Brevo)
   # -------------------------------------------------------------------
   mail:
-    host: ${SPRING_MAIL_HOST:smtp.mailtrap.io}
-    port: ${SPRING_MAIL_PORT:2525}
-    username: ${SPRING_MAIL_USERNAME:tu_usuario_smtp}
-    password: ${SPRING_MAIL_PASSWORD:tu_password_smtp}
+    host: ${SPRING_MAIL_HOST:smtp-relay.brevo.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:tu_usuario_smtp_brevo}
+    password: ${SPRING_MAIL_PASSWORD:tu_clave_smtp_brevo}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+
+# -------------------------------------------------------------------
+# Propiedades de correo de la aplicación
+# -------------------------------------------------------------------
+app:
+  mail:
+    from: ${APP_MAIL_FROM:notificaciones@tudominio.com}
 
 # -------------------------------------------------------------------
 # Configuración de SpringDoc / Swagger
