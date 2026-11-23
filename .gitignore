@@ -17,3 +17,4 @@ Thumbs.db
 # Build outputs
 target/
 *.log
+.mvn/wrapper/maven-wrapper.jar

@@ -12,7 +12,7 @@ services:
   # /internal/v1/notificaciones/* (debe correr en la misma red digitalfix-net).
   ms-digitalfix-notify:
     build:
-      context: ./ms.notify
+      context: .
       dockerfile: Dockerfile
     container_name: ms-digitalfix-notify
     ports:

@@ -10,8 +10,8 @@ spring:
   config:
     import:
       - optional:file:.env[.properties]
-      - optional:file:digitalfix-ms-notify/ms.notify/.env[.properties]
-      - optional:file:ms.notify/.env[.properties]
+      - optional:file:../digitalfix-infrastructure/.env[.properties]
+      - optional:file:digitalfix-infrastructure/.env[.properties]
       - optional:file:../.env[.properties]
 
   # Sin base de datos (caso, sección 5: ms-digitalfix-notify "sin DB") y sin conexión a RabbitMQ:
