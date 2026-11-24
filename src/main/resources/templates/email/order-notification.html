@@ -6,7 +6,7 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333333; }
         .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        .email-header { background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: #ffffff; padding: 24px; text-align: center; }
+        .email-header { background-color: #0d6efd; background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: #ffffff; padding: 24px; text-align: center; }
         .email-header h2 { margin: 0; font-size: 22px; font-weight: 600; }
         .email-body { padding: 30px; font-size: 15px; line-height: 1.6; }
         .order-card { background-color: #f8f9fa; border-left: 4px solid #0d6efd; padding: 16px; margin: 20px 0; border-radius: 4px; }
@@ -16,19 +16,19 @@
 <body>
     <div class="email-container">
         <div class="email-header">
-            <h2>⚡ DigitalFix — Servicio Técnico</h2>
+            <h2>DigitalFix — Servicio Técnico</h2>
         </div>
         <div class="email-body">
-            <p>Hola, <strong th:text="${clientName}">Cliente</strong>,</p>
-            <p>Te informamos sobre la actualización en tu orden de trabajo de mantenimiento eléctrico:</p>
-            
+            <p>Hola, <strong th:text="${clientName != null ? clientName : 'Cliente'}">Cliente</strong>,</p>
+            <p>Te informamos sobre la actualización en tu orden de trabajo:</p>
+
             <div class="order-card">
-                Orden de Trabajo N°: <span th:text="'#' + ${workOrderId}">#1001</span><br />
-                Estado: <span th:text="${status != null ? status : 'ASIGNADA'}">ASIGNADA</span>
+                Orden de Trabajo N°: <strong th:text="${workOrderId != null ? '#' + workOrderId : 'N/A'}">#1001</strong><br />
+                Estado: <strong th:text="${status != null ? status : 'ASIGNADA'}">ASIGNADA</strong>
             </div>
 
-            <p>Técnico Asignado: <strong th:text="${technicianName != null ? technicianName : 'Juan Pérez'}">Juan Pérez</strong></p>
-            <p>Dirección de Atención: <span th:text="${serviceAddress != null ? serviceAddress : 'Av. Providencia 1234'}">Av. Providencia 1234</span></p>
+            <p>Técnico Asignado: <strong th:text="${technicianName != null ? technicianName : 'Por asignar'}">Por asignar</strong></p>
+            <p>Dirección de Atención: <span th:text="${serviceAddress != null ? serviceAddress : 'Por confirmar'}">Por confirmar</span></p>
 
             <p>Puedes realizar el seguimiento continuo de tu atención desde nuestro portal web.</p>
         </div>
